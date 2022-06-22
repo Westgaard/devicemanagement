@@ -13,10 +13,13 @@ $device = Get-AzureADDevice -SearchString "client1"
 $DeviceGroups = (Invoke-MSGraphRequest -HttpMethod GET -Url "https://graph.microsoft.com/v1.0/devices/$($device.ObjectID)/memberOf").value.DisplayName
 
 # To find configuration assigned to device
-$groups = $devicegroups
+#$groups = $devicegroups
 
 # To find configuration assigned to user
-#$groups = $devicegroups
+#$groups = $Usergroups
+
+# To find configuration assigned to specific group
+$groups = "YourGroupName"
 
 #$Configuration = @()
 #### Config Don't change
