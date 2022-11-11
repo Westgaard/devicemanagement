@@ -49,27 +49,32 @@ Function Print-IntuneConfig {
   
   Param(
       $User,
-      $Device
+      $Device,
+      $UserGroup
   )
 
 $Configuration = @(
     [pscustomobject]@{Type='';ConfigName='';AssignedTo='';AssignmentType=''}
 )
 
-If (!($user -or $device)) {
-    throw "Please specify User or Device"
+If (!($user -or $device -or $UserGroup)) {
+    throw "Please specify User, Device or UserGroup"
 }
 
 If ($User) { 
     $groups = Get-AzureADUserMembership -ObjectId $user | select -ExpandProperty DisplayName
 }
-else {
+if ($device) {
 
     $AzureADDevice = Get-AzureADDevice -SearchString $device
     If (!($AzureADDevice)) { throw "Could not find $device"}
     $groups = (Invoke-MSGraphRequest -HttpMethod GET -Url "https://graph.microsoft.com/v1.0/devices/$($AzureADDevice.ObjectID)/memberOf").value.DisplayName
     }
 
+If ($UserGroup) {
+    $Groups = $usergroup
+    
+}
 
 ForEach ($MedlemGroup in $Groups) { 
 
