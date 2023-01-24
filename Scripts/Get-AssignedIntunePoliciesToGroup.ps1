@@ -2,7 +2,7 @@
 # Original script from https://timmyit.com/2019/12/04/get-all-assigned-intune-policies-and-apps-per-azure-ad-group/
 # Modified by Jon Arne Westgaard
 
-#Connect and change schema
+Connect and change schema
 Connect-AzureAD
 Connect-MSGraph
 Update-MSGraphEnvironment -SchemaVersion beta
@@ -10,6 +10,7 @@ Connect-MSGraph
 
 # Function to get "all" Intune-configuration
 Function Get-IntuneConfig {
+
     # Get all config
     # Apps
     $AllAssignedApps = Get-IntuneMobileApp -Filter "isAssigned eq true" -Select id, displayName, lastModifiedDateTime, assignments -Expand assignments
@@ -19,6 +20,7 @@ Function Get-IntuneConfig {
 
     # App Protection Policy iOS
     $AppProtectionPolicyConfigiOS = Get-IntuneAppProtectionPolicyiOS -Select id, displayName, lastModifiedDateTime, assignments -Expand assignments 
+    
     # Device Compliance
     $AllDeviceCompliance = Get-IntuneDeviceCompliancePolicy -Select id, displayName, lastModifiedDateTime, assignments -Expand assignments
  
@@ -42,9 +44,13 @@ Function Get-IntuneConfig {
     $graphApiVersion = "Beta"
     $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)?`$expand=Assignments"
     $SC = Invoke-MSGraphRequest -HttpMethod GET -Url $uri
+
+    If ($PrintConfig) {
+        Return  $AllAssignedApps, $AppProtectionPolicyConfigAndroid, $AppProtectionPolicyConfigiOS, $AllDeviceCompliance, $AllDeviceConfig, $DMS, $SC
+    }
 }
 
-#Function to print all Intune-configuration assigned to the group(s) you specify
+#Function to print all Intune-configuration assigned to the group(s) and/or device you specify
 Function Print-IntuneConfig {
   
   Param(
@@ -62,23 +68,32 @@ If (!($user -or $device -or $UserGroup)) {
 }
 
 If ($User) { 
-    $groups = Get-AzureADUserMembership -ObjectId $user | select -ExpandProperty DisplayName
+    $groups = Get-AzureADUserMembership -ObjectId $user | select DisplayName, ObjectID
 }
 if ($device) {
 
     $AzureADDevice = Get-AzureADDevice -SearchString $device
     If (!($AzureADDevice)) { throw "Could not find $device"}
-    $groups = (Invoke-MSGraphRequest -HttpMethod GET -Url "https://graph.microsoft.com/v1.0/devices/$($AzureADDevice.ObjectID)/memberOf").value.DisplayName
+    $DeviceGroups = (Invoke-MSGraphRequest -HttpMethod GET -Url "https://graph.microsoft.com/v1.0/devices/$($AzureADDevice.ObjectID)/memberOf").value.DisplayName
+    $Groups = @()
+    Foreach ($DevGroup in $DeviceGroups) {
+        $Groups += Get-AADGroup -Filter "displayname eq '$DevGroup'" | select Displayname, ID
     }
 
+}
+
 If ($UserGroup) {
-    $Groups = $usergroup
+    $Groups = Get-AADGroup -filter "displayname eq '$usergroup'" | select Displayname, ID
     
 }
 
 ForEach ($MedlemGroup in $Groups) { 
-
-        $Group = Get-AADGroup -Filter "displayname eq '$MedlemGroup'"
+        If ($MedlemGroup.ObjectID) {
+            $Group = Get-AADGroup -groupId $MedlemGroup.ObjectID
+        }
+        Elseif ($MedlemGroup.ID) {
+               $Group = Get-AADGroup -groupId $MedlemGroup.ID
+        }
         If (!($Group)) { throw "Could not find $group"}
         Write-host "AAD Group Name: $($Group.displayName)" -ForegroundColor Green
 
@@ -175,17 +190,14 @@ ForEach ($MedlemGroup in $Groups) {
             Foreach ($Config in $AllSC) {
                 $data = [pscustomobject]@{Type='DeviceCompliance';ConfigName="$($Config.displayName)";AssignedTo="$($Group.displayName)";AssignmentType="Included"}
                 $Configuration += $data
-
-
                 Write-host "    ", $Config.Name -ForegroundColor Yellow
-
             }
         }
-
     }
 }
 
-
+# To get all config, does not have to be run every time:
 Get-IntuneConfig
-Print-IntuneConfig -UserGroup "Your Azure AD User Group or user"
-Print-IntuneConfig -DeviceGroup "Your Azure AD Device group or device"
+Print-IntuneConfig -UserGroup "MyUserGroup"
+Print-IntuneConfig -Device "MyDevice"
+Print-IntuneConfig -User "myusername@mycompany.com"
