@@ -44,6 +44,8 @@ Function Get-IntuneConfig {
     $graphApiVersion = "Beta"
     $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)?`$expand=Assignments"
     $SC = Invoke-MSGraphRequest -HttpMethod GET -Url $uri
+    
+    Return  $AllAssignedApps, $AppProtectionPolicyConfigAndroid, $AppProtectionPolicyConfigiOS, $AllDeviceCompliance, $AllDeviceConfig, $DMS, $SC
 }
 
 #Function to print all Intune-configuration assigned to the group(s) and/or device you specify
