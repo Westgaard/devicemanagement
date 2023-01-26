@@ -12,3 +12,9 @@ Get-ChildItem -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall, H
 ```
 Get-ChildItem -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall, HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall | Get-ItemProperty | Select-Object -Property DisplayName, UninstallString | Where-Object {$_.DisplayName -match 'Notepad\+\+' }
 ```
+
+## Powershell App Deploy Toolkit
+### Set logpath for PS ADT to Intune log-folder
+Working with Intune and applications, having access to all logfiles are crucial to finding and resolving errors. If you change the default log-path in PS ADT to the IntuneManagementExtension-folder, these logfiles will be collected when you select "Collect diagnostics" in Intune.
+
+Simply change Toolkit_LogPath to the following in .\AppDeployToolkit\AppDeployToolkitConfig.xml: ````<Toolkit_LogPath>$env:Programdata\Microsoft\IntuneManagementExtension\Logs</Toolkit_LogPath>````
