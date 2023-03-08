@@ -9,7 +9,7 @@ $AllAssignedApps = Get-IntuneMobileApp -Filter "isAssigned eq true" -Select id, 
 
 Write-host "  Number of Apps found: $($AllAssigned.DisplayName.Count)" -ForegroundColor cyan
 $AppInfo = @(
-    [pscustomobject]@{AppType='';AppName='';AssignedTo='';AssignmentType=''}
+    [pscustomobject]@{AppType='';AppName='';AssignedTo='';AssignmentType='';AssignmentMode=''}
 )
 
 Foreach ($App in $AllAssignedApps) {
@@ -24,10 +24,11 @@ Foreach ($App in $AllAssignedApps) {
         Elseif ($app.assignments.id -match "adadadad-808e-44e2-905a-0b7873a8a531") {
             $GroupDisplayName = "All devices"
             }
+        If ($assignments.target.'@odata.type' -match "#microsoft.graph.exclusionGroupAssignmentTarget") { $AssMode = "Excluded"} Else {$AssMode = "Included"}
         $appType = $app.'@odata.type'.Replace("#microsoft.graph.","")
-        $data = [pscustomobject]@{AppType=$AppType;AppName="$($app.displayName)";AssignedTo=$GroupDisplayName;AssignmentType=$Assignments.Intent}
+        $data = [pscustomobject]@{AppType=$AppType;AppName="$($app.displayName)";AssignedTo=$GroupDisplayName;AssignmentType=$Assignments.Intent;AssignmentMode=$AssMode}
         $AppInfo += $data
-        Write-host "    " $app.displayName -ForegroundColor Yellow -NoNewline; Write-Host " "$($Assignments.Intent) -ForegroundColor Magenta -NoNewline ; Write-Host " "$GroupDisplayName -NoNewline; Write-Host " "$AppType -ForegroundColor Green
+        Write-host "    " $app.displayName -ForegroundColor Yellow -NoNewline; Write-Host " "$($Assignments.Intent) -ForegroundColor Magenta -NoNewline ;  Write-Host " " $AssMode -nonewline; Write-Host " "$GroupDisplayName -NoNewline -ForegroundColor Green; Write-Host " "$AppType
     }               
 }
 
@@ -38,6 +39,7 @@ $AppInfo | ForEach-Object {
         AppName = $_.AppName
         AssignedTo = $_.AssignedTo
         AssignmentType = $_.AssignmentType
+        AssignmentMode = $_.AssignmentMode
     }
 }
 $ExportArray | Export-Csv -Path "$Csvfile" -NoTypeInformation
