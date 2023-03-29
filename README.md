@@ -13,6 +13,12 @@ Get-ChildItem -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall, H
 Get-ChildItem -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall, HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall | Get-ItemProperty | Select-Object -Property DisplayName, UninstallString | Where-Object {$_.DisplayName -match 'Notepad\+\+' }
 ```
 
+### Compare installed application versions, useful for requirement-scrips when updating apps
+```
+$VMware = Get-Package "VMware Horizon Client" -ProviderName MSI -ErrorAction SilentlyContinue
+[Version]$Vmware.Version -lt [version]"8.8.1.34412"
+```
+
 ## Powershell App Deploy Toolkit
 ### Set logpath for PS ADT to Intune log-folder
 Working with Intune and applications, having access to all logfiles are crucial to finding and resolving errors. If you change the default log-path in PS ADT to the IntuneManagementExtension-folder, these logfiles will be collected when you select "Collect diagnostics" in Intune.
