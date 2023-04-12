@@ -3,49 +3,48 @@
 # Modified by Jon Arne Westgaard
 
 #Connect and change schema
-Connect-AzureAD
-Connect-MSGraph
-Update-MSGraphEnvironment -SchemaVersion beta
-Connect-MSGraph
+#Connect-AzureAD
+#Connect-MSGraph
+#Update-MSGraphEnvironment -SchemaVersion beta
+#Connect-MSGraph
 
 # Function to get "all" Intune-configuration
 Function Get-IntuneConfig {
 
     # Get all config
     # Apps
-    $AllAssignedApps = Get-IntuneMobileApp -Filter "isAssigned eq true" -Select id, displayName, lastModifiedDateTime, assignments -Expand assignments
+    $global:AllAssignedApps = Get-IntuneMobileApp -Filter "isAssigned eq true" -Select id, displayName, lastModifiedDateTime, assignments -Expand assignments
 
     # App Protection Policy Android
-    $AppProtectionPolicyConfigAndroid = Get-IntuneAppProtectionPolicyAndroid -Select id, displayName, lastModifiedDateTime, assignments -Expand assignments
+    $global:AppProtectionPolicyConfigAndroid = Get-IntuneAppProtectionPolicyAndroid -Select id, displayName, lastModifiedDateTime, assignments -Expand assignments
 
     # App Protection Policy iOS
-    $AppProtectionPolicyConfigiOS = Get-IntuneAppProtectionPolicyiOS -Select id, displayName, lastModifiedDateTime, assignments -Expand assignments 
+    $global:AppProtectionPolicyConfigiOS = Get-IntuneAppProtectionPolicyiOS -Select id, displayName, lastModifiedDateTime, assignments -Expand assignments 
     
     # Device Compliance
-    $AllDeviceCompliance = Get-IntuneDeviceCompliancePolicy -Select id, displayName, lastModifiedDateTime, assignments -Expand assignments
+    $global:AllDeviceCompliance = Get-IntuneDeviceCompliancePolicy -Select id, displayName, lastModifiedDateTime, assignments -Expand assignments
  
     # Device Configuration
-    $AllDeviceConfig = Get-IntuneDeviceConfigurationPolicy -Select id, displayName, lastModifiedDateTime, assignments -Expand assignments 
+    $global:AllDeviceConfig = Get-IntuneDeviceConfigurationPolicy -Select id, displayName, lastModifiedDateTime, assignments -Expand assignments 
  
     # Device Configuration Powershell Scripts 
     $Resource = "deviceManagement/deviceManagementScripts"
     $graphApiVersion = "Beta"
     $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)?`$expand=groupAssignments"
-    $DMS = Invoke-MSGraphRequest -HttpMethod GET -Url $uri
+    $global:DMS = Invoke-MSGraphRequest -HttpMethod GET -Url $uri
   
     # Administrative templates
     $Resource = "deviceManagement/groupPolicyConfigurations"
     $graphApiVersion = "Beta"
     $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)?`$expand=Assignments"
-    $ADMT = Invoke-MSGraphRequest -HttpMethod GET -Url $uri
+    $global:ADMT = Invoke-MSGraphRequest -HttpMethod GET -Url $uri
 
     # Settings Catalog
     $Resource = "deviceManagement/configurationPolicies"
     $graphApiVersion = "Beta"
     $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)?`$expand=Assignments"
-    $SC = Invoke-MSGraphRequest -HttpMethod GET -Url $uri
-    
-    Return  $AllAssignedApps, $AppProtectionPolicyConfigAndroid, $AppProtectionPolicyConfigiOS, $AllDeviceCompliance, $AllDeviceConfig, $DMS, $SC
+    $global:SC = Invoke-MSGraphRequest -HttpMethod GET -Url $uri
+
 }
 
 #Function to print all Intune-configuration assigned to the group(s) and/or device you specify
@@ -67,6 +66,11 @@ If (!($user -or $device -or $UserGroup)) {
 
 If ($User) { 
     $groups = Get-AzureADUserMembership -ObjectId $user | select DisplayName, ObjectID
+    
+    $AllUsersGroup = @()
+    $AllUsersGroup += New-Object -TypeName psobject -Property @{DisplayName="All Users"; ObjectID="acacacac-9df4-4c7d-9d50-4ef0226f57a9"}
+    
+    $groups += $AllUsersGroup
 }
 if ($device) {
 
@@ -77,7 +81,10 @@ if ($device) {
     Foreach ($DevGroup in $DeviceGroups) {
         $Groups += Get-AADGroup -Filter "displayname eq '$DevGroup'" | select Displayname, ID
     }
+    $AllDevicesGroup= @()
+    $AllDevicesGroup += New-Object -TypeName psobject -Property @{DisplayName="All Devices"; ObjectID="adadadad-808e-44e2-905a-0b7873a8a531"}
 
+    $groups += $AllDevicesGroup
 }
 
 If ($UserGroup) {
@@ -86,12 +93,19 @@ If ($UserGroup) {
 }
 
 ForEach ($MedlemGroup in $Groups) { 
-        If ($MedlemGroup.ObjectID) {
+        If ($MedlemGroup.Displayname -eq "All Users") {
+            $group = $MedlemGroup
+        }
+        ElseIf ($MedlemGroup.Displayname -eq "All Devices") {
+            $group = $MedlemGroup
+        }
+        ElseIf ($MedlemGroup.ObjectID) {
             $Group = Get-AADGroup -groupId $MedlemGroup.ObjectID
         }
-        Elseif ($MedlemGroup.ID) {
-               $Group = Get-AADGroup -groupId $MedlemGroup.ID
+        ElseIf ($MedlemGroup.ID) {
+            $Group = Get-AADGroup -groupId $MedlemGroup.ID
         }
+
         If (!($Group)) { throw "Could not find $group"}
         Write-host "AAD Group Name: $($Group.displayName)" -ForegroundColor Green
 
@@ -100,20 +114,33 @@ ForEach ($MedlemGroup in $Groups) {
         $MedlemGroupApps = $AllAssignedApps | Where-Object {$_.assignments -match $Group.id}
         If ($MedlemGroupApps.DisplayName.Count -gt 0) { 
         Write-host "  Number of Apps found: $($MedlemGroupApps.DisplayName.Count)" -ForegroundColor cyan
-            Foreach ($Config in $MedlemGroupApps) {            
-                $data = [pscustomobject]@{Type='App';ConfigName="$($Config.displayName)";AssignedTo="$($Group.displayName)";AssignmentType="Included"}
-                $Configuration += $data
-                Write-host "    " $Config.displayName -ForegroundColor Yellow
+            Foreach ($Config in $MedlemGroupApps) {
+                Foreach ($assignments in $config.assignments) {
+                    If ($assignments.target.groupId -eq $group.id) {
+                        $appType = $config.'@odata.type'.Replace("#microsoft.graph.","")
+                        $data = [pscustomobject]@{Type=$AppType;ConfigName="$($Config.displayName)";AssignedTo="$($Group.displayName)";AssignmentType=$Assignments.Intent}
+                        $Configuration += $data
+                        If ($Assignments.target.groupId)  {
+                            $GroupDisplayName = Get-AzureADGroup -ObjectId $Assignments.target.groupId | select -ExpandProperty Displayname
+                        }
+                        Write-host "    " $config.displayName -ForegroundColor Yellow -NoNewline; Write-Host " "$($Assignments.Intent) -ForegroundColor Magenta -NoNewline ;  Write-Host " "$GroupDisplayName -NoNewline -ForegroundColor Green; Write-Host " "$AppType
+                    }
+                }
             }
         }
 
         # App Protection Policy Android
         $AssAppProtectionAndroid = $AppProtectionPolicyConfigAndroid | Where-Object {$_.assignments -match $Group.id}
-        If ($AssAppProtectionAndroid.DisplayName.Count -gt 0) {Write-host "  Number of App Protection Policy Android found: $($AssAppProtectionAndroid.DisplayName.Count)" -ForegroundColor cyan
-        Foreach ($Config in $AssAppProtectionAndroid) {
-            $data = [pscustomobject]@{Type='AppProtectionPolicy';ConfigName="$($Config.displayName)";AssignedTo="$($Group.displayName)";AssignmentType="Included"}
-            $Configuration += $data
-            Write-host "    " $Config.displayName -ForegroundColor Yellow
+        If ($AssAppProtectionAndroid.DisplayName.Count -gt 0) {
+            Write-host "  Number of App Protection Policy Android found: $($AssAppProtectionAndroid.DisplayName.Count)" -ForegroundColor cyan
+            Foreach ($Config in $AssAppProtectionAndroid) {
+                Foreach ($assignments in $config.assignments) {
+                    If ($assignments.target.groupId -eq $group.id) {
+                        $data = [pscustomobject]@{Type='AppProtectionPolicy';ConfigName="$($Config.displayName)";AssignedTo="$($Group.displayName)";AssignmentType=$config.Intent}
+                        $Configuration += $data
+                        Write-host "    " $config.displayName -ForegroundColor Yellow -NoNewline; Write-Host " "$GroupDisplayName -ForegroundColor Green
+                    }
+                }
             }
         }
 
@@ -121,43 +148,51 @@ ForEach ($MedlemGroup in $Groups) {
         $AssignedAppProtectioniOS = $AppProtectionPolicyConfigiOS | Where-Object {$_.assignments -match $Group.id}
         If ($AssignedAppProtectioniOS.DisplayName.Count -gt 0) {Write-host "  Number of App Protection Policy iOS found: $($AssignedAppProtectioniOS.DisplayName.Count)" -ForegroundColor cyan
             Foreach ($Config in $AssignedAppProtectioniOS) {
-            $data = [pscustomobject]@{Type='AppProtectionPolicyConfigIOS';ConfigName="$($Config.displayName)";AssignedTo="$($Group.displayName)";AssignmentType="Included"}
-            $Configuration += $data
-            Write-host "    " $Config.displayName -ForegroundColor Yellow
- 
+                $data = [pscustomobject]@{Type='AppProtectionPolicyConfigIOS';ConfigName="$($Config.displayName)";AssignedTo="$($Group.displayName)";AssignmentType="Included"}
+                $Configuration += $data
+                Write-host "    " $Config.displayName -ForegroundColor Yellow -NoNewline; Write-Host " "$GroupDisplayName -ForegroundColor Green
             }
         }
 
-            # Device Compliance
+        # Device Compliance
         $AssignedDevCompliance = $AllDeviceCompliance | Where-Object {$_.assignments -match $Group.id}
-        If ($AssignedDevCompliance.DisplayName.Count -gt 0) { Write-host "  Number of Device Compliance policies found: $($AssignedDevCompliance.DisplayName.Count)" -ForegroundColor cyan
+        If ($AssignedDevCompliance.DisplayName.Count -gt 0) {
+        Write-host "  Number of Device Compliance policies found: $($AssignedDevCompliance.DisplayName.Count)" -ForegroundColor cyan
             Foreach ($Config in $AssignedDevCompliance) {
-            $data = [pscustomobject]@{Type='DeviceCompliance';ConfigName="$($Config.displayName)";AssignedTo="$($Group.displayName)";AssignmentType="Included"}
-            $Configuration += $data
-            Write-host "    " $Config.displayName -ForegroundColor Yellow
- 
+                ForEach ($assignments in $config.assignments) {
+                    If ($assignments.target.groupId -eq $group.id) {
+                        $data = [pscustomobject]@{Type='DeviceCompliance';ConfigName="$($Config.displayName)";AssignedTo="$($Group.displayName)"}
+                        $Configuration += $data
+                        Write-host "    " $config.displayName -ForegroundColor Yellow -NoNewline; Write-Host " "$GroupDisplayName -ForegroundColor Green
+                    }
+                }
             }
         }
  
         # Device Configuration
         $AssignedDevConfig = $AllDeviceConfig  | Where-Object {$_.assignments -match $Group.id}
-        If ($AssignedDevConfig.DisplayName.Count -gt 0) { Write-host "  Number of Device Configurations found: $($AssignedDevConfig.DisplayName.Count)" -ForegroundColor cyan
+        If ($AssignedDevConfig.DisplayName.Count -gt 0) {
+            Write-host "  Number of Device Configurations found: $($AssignedDevConfig.DisplayName.Count)" -ForegroundColor cyan
             Foreach ($Config in $AssignedDevConfig) {
-            $data = [pscustomobject]@{Type='DeviceConfigurationPolicy';ConfigName="$($Config.displayName)";AssignedTo="$($Group.displayName)";AssignmentType="Included"}
-            $Configuration += $data
-            Write-host "    " $Config.displayName -ForegroundColor Yellow
- 
+                Foreach ($assignments in $config.assignments) {
+                    If ($assignments.target.groupId -eq $group.id) {
+                        If ($assignments.target.'@odata.type' -match "#microsoft.graph.exclusionGroupAssignmentTarget") { $AssMode = "Excluded"} Else {$AssMode = "Included"}
+                        $data = [pscustomobject]@{Type='DeviceConfigurationPolicy';ConfigName="$($Config.displayName)";AssignedTo="$($Group.displayName)";AssignmentType=$assmode}
+                        $Configuration += $data
+                        Write-host "    " $config.displayName -ForegroundColor Yellow -NoNewline; Write-Host " "$AssMode -ForegroundColor Magenta -NoNewline ;  Write-Host " "$GroupDisplayName -ForegroundColor Green
+                    }
+                }
             }
         }
  
         # Device Configuration Powershell Scripts 
         $AllDeviceConfigScripts = $DMS.value | Where-Object {$_.groupAssignments -match $Group.id}
-        If ($AllDeviceConfigScripts.DisplayName.Count -gt 0) {Write-host "  Number of Device Configurations Powershell Scripts found: $($AllDeviceConfigScripts.DisplayName.Count)" -ForegroundColor cyan
+        If ($AllDeviceConfigScripts.DisplayName.Count -gt 0) {
+            Write-host "  Number of Device Configurations Powershell Scripts found: $($AllDeviceConfigScripts.DisplayName.Count)" -ForegroundColor cyan
             Foreach ($Config in $AllDeviceConfigScripts) {
-            $data = [pscustomobject]@{Type='PowershellScripts';ConfigName="$($Config.displayName)";AssignedTo="$($Group.displayName)";AssignmentType="Included"}
-            $Configuration += $data
-                Write-host "    " $Config.displayName -ForegroundColor Yellow
- 
+                $data = [pscustomobject]@{Type='PowershellScripts';ConfigName="$($Config.displayName)";AssignedTo="$($Group.displayName)";AssignmentType="Included"}
+                $Configuration += $data
+                Write-host "    " $Config.displayName -ForegroundColor Yellow -NoNewline; Write-Host " "$GroupDisplayName -ForegroundColor Green
             }
         }
  
@@ -167,15 +202,10 @@ ForEach ($MedlemGroup in $Groups) {
             Foreach ($Config in $AllADMT) {
                 Foreach ($Assignment in $config.assignments.target ) {
                     If ($Assignment.GroupID -eq $group.id) {
-                                        
-                        If ($assignment.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                            $data = [pscustomobject]@{Type='App';ConfigName="$($Config.displayName)";AssignedTo="$($Group.displayName)";AssignmentType="Excluded"}
-                            Write-host "    Excluded: " $Config.displayName -ForegroundColor Red                
-                        }
-                        Else {
-                            $data = [pscustomobject]@{Type='App';ConfigName="$($Config.displayName)";AssignedTo="$($Group.displayName)";AssignmentType="Included"}
-                            Write-host "    " $Config.displayName -ForegroundColor Yellow}
+                        If ($assignment.target.'@odata.type' -match "#microsoft.graph.exclusionGroupAssignmentTarget") { $AssMode = "Excluded"} Else {$AssMode = "Included"}
+                        $data = [pscustomobject]@{Type='ADMT';ConfigName="$($Config.displayName)";AssignedTo="$($Group.displayName)";AssignmentType=$AssMode}
                         $Configuration += $data
+                        Write-host "    " $config.displayName -ForegroundColor Yellow -NoNewline; Write-Host " "$AssMode -ForegroundColor Magenta -NoNewline ;  Write-Host " "$GroupDisplayName -ForegroundColor Green
                     }
                 }
             }
@@ -183,19 +213,24 @@ ForEach ($MedlemGroup in $Groups) {
 
         # Settings Catalog
         $AllSC = $SC.value | Where-Object {$_.assignments -match $Group.id}
-        If ($AllSC.name.Count -gt 0) { Write-host "  Number of Device Settings Catalogs found: $($AllSC.Name.Count)" -ForegroundColor cyan
-
+        If ($AllSC.name.Count -gt 0) {
+            Write-host "  Number of Device Settings Catalogs found: $($AllSC.Name.Count)" -ForegroundColor cyan
             Foreach ($Config in $AllSC) {
-                $data = [pscustomobject]@{Type='DeviceCompliance';ConfigName="$($Config.displayName)";AssignedTo="$($Group.displayName)";AssignmentType="Included"}
-                $Configuration += $data
-                Write-host "    ", $Config.Name -ForegroundColor Yellow
+                Foreach ($Assignment in $config.assignments) {
+                    If ($assignment.target.groupId -eq $group.id) {
+                        If ($assignment.target.'@odata.type' -match "#microsoft.graph.exclusionGroupAssignmentTarget") { $AssMode = "Excluded"} Else {$AssMode = "Included"}
+                        $data = [pscustomobject]@{Type='DeviceCompliance';ConfigName="$($Config.Name)";AssignedTo="$($Group.displayName)";AssignmentType="Included"}
+                        $Configuration += $data
+                        Write-host "    " $config.Name -ForegroundColor Yellow -NoNewline; Write-Host " "$AssMode -ForegroundColor Magenta -NoNewline ;  Write-Host " "$GroupDisplayName -ForegroundColor Green
+                    }
+                }
             }
         }
     }
 }
-
+$configuration
 # To get all config, does not have to be run every time:
 Get-IntuneConfig
 Print-IntuneConfig -UserGroup "MyUserGroup"
-Print-IntuneConfig -Device "MyDevice"
-Print-IntuneConfig -User "myusername@mycompany.com"
+#Print-IntuneConfig -Device "MyDevice"
+#Print-IntuneConfig -User "myusername@mycompany.com"
