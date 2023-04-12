@@ -3,10 +3,10 @@
 # Modified by Jon Arne Westgaard
 
 #Connect and change schema
-#Connect-AzureAD
-#Connect-MSGraph
-#Update-MSGraphEnvironment -SchemaVersion beta
-#Connect-MSGraph
+Connect-AzureAD
+Connect-MSGraph
+Update-MSGraphEnvironment -SchemaVersion beta
+Connect-MSGraph
 
 # Function to get "all" Intune-configuration
 Function Get-IntuneConfig {
