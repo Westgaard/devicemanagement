@@ -24,3 +24,6 @@ $VMware = Get-Package "VMware Horizon Client" -ProviderName MSI -ErrorAction Sil
 Working with Intune and applications, having access to all logfiles are crucial to finding and resolving errors. If you change the default log-path in PS ADT to the IntuneManagementExtension-folder, these logfiles will be collected when you select "Collect diagnostics" in Intune.
 
 Simply change Toolkit_LogPath to the following in .\AppDeployToolkit\AppDeployToolkitConfig.xml: ````<Toolkit_LogPath>$env:Programdata\Microsoft\IntuneManagementExtension\Logs</Toolkit_LogPath>````
+
+### Install command to show gui during installation
+```powershell.exe -ExecutionPolicy Bypass -File .\InstallWin32.ps1 -DeploymentType Install```
