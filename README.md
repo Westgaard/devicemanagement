@@ -27,3 +27,5 @@ Simply change Toolkit_LogPath to the following in .\AppDeployToolkit\AppDeployTo
 
 ### Install command to show gui during installation
 ```powershell.exe -ExecutionPolicy Bypass -File .\InstallWin32.ps1 -DeploymentType Install```
+
+Place [InstallWin32.ps1](https://github.com/Westgaard/devicemanagement/blob/main/Scripts/InstallWin32.ps1) in same folder as Deploy-Application.ps1
