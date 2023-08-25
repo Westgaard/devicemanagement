@@ -29,3 +29,16 @@ Simply change Toolkit_LogPath to the following in .\AppDeployToolkit\AppDeployTo
 ```powershell.exe -ExecutionPolicy Bypass -File .\InstallWin32.ps1 -DeploymentType Install```
 
 Place [InstallWin32.ps1](https://github.com/Westgaard/devicemanagement/blob/main/Scripts/InstallWin32.ps1) in same folder as Deploy-Application.ps1
+
+## Powershell
+### Restart Powershell in 64-bit (Runs as default in 32-bit from Intune)
+```## Starter PowerShell i 64-bit modus dersom sesjonen er startet i 32-bit
+    if (!([Environment]::Is64BitProcess )) {
+        if ($MyInvocation.Line) {
+& "$env:windir\SysNative\WindowsPowerShell\v1.0\Powershell.exe" -ExecutionPolicy Bypass -NoLogo -NoProfile $MyInvocation.Line
+        } Else {
+& "$env:windir\SysNative\WindowsPowerShell\v1.0\Powershell.exe" -ExecutionPolicy Bypass -NoLogo -NoProfile -File ($MyInvocation.InvocationName)
+            }
+        EXIT $LASTEXITCODE
+    }
+```
