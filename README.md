@@ -42,3 +42,14 @@ Place [InstallWin32.ps1](https://github.com/Westgaard/devicemanagement/blob/main
         EXIT $LASTEXITCODE
     }
 ```
+
+## Security Center / Microsoft 365 Defendeder
+### Advanced hunting query to get all users with installed software
+```
+let klient = DeviceTvmSoftwareVulnerabilities
+| where SoftwareName contains "YourApplication"
+| distinct DeviceName;
+DeviceLogonEvents
+| where DeviceName in (klient) and AccountName contains "@yourdomain"
+| distinct AccountName
+```
