@@ -43,6 +43,27 @@ Place [InstallWin32.ps1](https://github.com/Westgaard/devicemanagement/blob/main
     }
 ```
 
+### Add device list to AAD group (For example when exporting exposed devices from Security Center)
+```
+Connect-MSGraph
+Update-MSGraphEnvironment -SchemaVersion "Beta" -Quiet
+Connect-MSGraph -Quiet
+
+# The group idwe are adding devices to
+$groupId = "12121212-34234234-45345-345345-34565756"
+
+$devices = Import-Csv -Path "C:\DevicesExport.csv"
+
+foreach ($device in $devices) {
+    $deviceName = $device.DeviceName
+    $deviceId = (Get-MgDevice -Filter "displayName eq '$deviceName'").Id
+
+    # Add the device to group
+    Add-AzureADGroupMember -ObjectId $groupId -RefObjectId $deviceId
+    Write-host "Adding $deviceid"
+}
+```
+
 ## Security Center / Microsoft 365 Defendeder
 ### Advanced hunting query to get all users with installed software
 ```
